@@ -1,193 +1,196 @@
+let currentUserId = "";
+
 $(document).ready(function () {
-    let currentUid = '';
-
-    // 회원가입 처리 비동기 통신 (POST)
-    $('#submit-register-btn').on('click', function () {
-        const uname = $('#reg-name').val().trim();
-        const uid = $('#reg-id').val().trim();
-        const upwd = $('#reg-pwd').val().trim();
-
-        if (!uname || !uid || !upwd) {
-            alert('모든 항목을 정확히 입력해주세요.');
-            return;
-        }
-
-        $.ajax({
-            url: '/register',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ uname: uname, uid: uid, upwd: upwd }),
-            success: function (response) {
-                alert('회원가입이 완료되었습니다! 가입하신 정보로 로그인해주세요.');
-                // 입력창 초기화 및 모달 닫기
-                $('#reg-name').val('');
-                $('#reg-id').val('');
-                $('#reg-pwd').val('');
-                $('#registerModal').modal('hide');
-            },
-            error: function (xhr) {
-                const errorMsg = xhr.responseJSON ? xhr.responseJSON.error : '회원가입 실패';
-                alert(`❌ 회원가입 오류: ${errorMsg}`);
-            }
-        });
-    });
-
-    // 로그인 처리 인증 비동기 통신 (POST)
-    $('#login-btn').on('click', function () {
-        const uid = $('#login-id').val().trim();
-        const upwd = $('#login-pwd').val().trim();
+    // [로그인]
+    $("#login-btn").click(function () {
+        const uid = $("#login-id").val().trim();
+        const upwd = $("#login-pwd").val().trim();
 
         if (!uid || !upwd) {
-            alert('아이디와 비밀번호를 모두 입력해주세요.');
+            alert("아이디와 비밀번호를 모두 입력해 주세요.");
             return;
         }
 
         $.ajax({
-            url: '/login',
-            type: 'POST',
-            contentType: 'application/json',
+            url: "/login",
+            type: "POST",
+            contentType: "application/json",
             data: JSON.stringify({ uid: uid, upwd: upwd }),
             success: function (response) {
-                alert(`${response.user.uname}님 시스템 접속을 승인합니다.`);
-                currentUid = response.user.uid;
+                alert(`${response.user.uname}님, 환영합니다!`);
+                currentUserId = response.user.uid;
                 
-                $('#user-display').text(`${response.user.uname}(${currentUid})`);
-                $('#login-section').hide();
-                $('#todo-section').show();
-
-                fetchTodos();
+                $("#user-display").text(`${response.user.uname}(${response.user.uid})`);
+                $("#login-section").hide();
+                $("#todo-section").show();
+                
+                loadTodoList(currentUserId);
             },
             error: function (xhr) {
-                const errorMsg = xhr.responseJSON ? xhr.responseJSON.error : '인증 실패';
-                alert(`❌ 접속 실패: ${errorMsg}`);
+                const errorMsg = xhr.responseJSON ? xhr.responseJSON.message : "로그인 실패";
+                alert(`❌ 오류: ${errorMsg}`);
             }
         });
     });
 
-    // 전체 할 일 목록 로드 (GET)
-    function fetchTodos() {
+    // [회원가입]
+    $("#submit-register-btn").click(function () {
+        const uname = $("#reg-name").val().trim();
+        const uid = $("#reg-id").val().trim();
+        const upwd = $("#reg-pwd").val().trim();
+
+        if (!uname || !uid || !upwd) {
+            alert("모든 필드를 빠짐없이 입력해 주세요.");
+            return;
+        }
+
         $.ajax({
-            url: `/todos?uid=${currentUid}`,
-            type: 'GET',
-            dataType: 'json',
-            success: function (data) {
-                const $todoList = $('#todo-list');
+            url: "/register",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({ uname: uname, uid: uid, upwd: upwd }),
+            success: function (response) {
+                alert("회원가입이 완료되었습니다! 로그인해 주세요.");
+                $("#reg-name").val("");
+                $("#reg-id").val("");
+                $("#reg-pwd").val("");
+                $("#registerModal").modal("hide");
+            },
+            error: function (xhr) {
+                const errorMsg = xhr.responseJSON ? xhr.responseJSON.message : "회원가입 실패";
+                alert(`❌ 오류: ${errorMsg}`);
+            }
+        });
+    });
+
+    // [로그아웃]
+    $("#logout-btn").click(function () {
+        $.ajax({
+            url: "/logout",
+            type: "POST",
+            success: function () {
+                alert("로그아웃 되었습니다.");
+                currentUserId = "";
+                $("#login-id").val("");
+                $("#login-pwd").val("");
+                $("#todo-list").empty();
+                $("#todo-section").hide();
+                $("#login-section").show();
+            },
+            error: function () {
+                alert("로그아웃 처리 중 오류가 발생했습니다.");
+            }
+        });
+    });
+
+    // [할 일 목록 조회]
+    function loadTodoList(uid) {
+        $.ajax({
+            url: `/todos?uid=${encodeURIComponent(uid)}`,
+            type: "GET",
+            success: function (todos) {
+                const $todoList = $("#todo-list");
                 $todoList.empty();
 
-                if (data.length === 0) {
-                    $todoList.append('<li class="list-group-item text-center text-muted">등록된 항목이 없습니다.</li>');
+                if (todos.length === 0) {
+                    $todoList.append('<li class="list-group-item text-center text-muted py-3">등록된 할 일이 없습니다.</li>');
                     return;
                 }
 
-                data.forEach(function (todo) {
-                    const isChecked = todo.completed ? 'checked' : '';
-                    const textClass = todo.completed ? 'completed' : '';
+                todos.forEach(function (todo) {
+                    const isCompleted = todo.completed === 1;
+                    const textClass = isCompleted ? "completed" : "";
+                    const checkedAttr = isCompleted ? "checked" : "";
 
-                    const listItem = `
-                        <li class="list-group-item d-flex justify-content-between align-items-center" data-id="${todo.id}">
-                            <div>
-                                <input class="form-check-input me-2 todo-toggle" type="checkbox" ${isChecked}>
-                                <span class="todo-title ${textClass}">${todo.title}</span>
-                                <small class="text-muted ms-3" style="font-size: 0.73rem;">(${todo.datetime})</small>
+                    const liHtml = `
+                        <li class="list-group-item d-flex justify-content-between align-items-center py-2" data-id="${todo.id}">
+                            <div class="d-flex align-items-center gap-3 w-70">
+                                <input class="form-check-input todo-toggle" type="checkbox" ${checkedAttr}>
+                                <span class="todo-title ${textClass}" style="word-break: break-all;">${todo.title}</span>
                             </div>
-                            <button class="btn btn-danger btn-sm delete-btn">삭제</button>
+                            <div class="d-flex align-items-center gap-2">
+                                <small class="text-muted" style="font-size: 0.75rem;">${todo.datetime}</small>
+                                <button class="btn btn-sm btn-outline-danger todo-delete-btn" type="button">삭제</button>
+                            </div>
                         </li>
                     `;
-                    $todoList.append(listItem);
+                    $todoList.append(liHtml);
                 });
             },
             error: function () {
-                alert('데이터 조회에 실패했습니다.');
+                alert("할 일 목록을 불러오는 데 실패했습니다.");
             }
         });
     }
 
-    // 데이터 항목 추가 (POST)
-    $('#add-btn').on('click', function () {
-        addTodoItem();
-    });
-
-    $('#todo-input').on('keypress', function (e) {
-        if (e.which === 13) {
-            addTodoItem();
-        }
-    });
-
-    function addTodoItem() {
-        const title = $('#todo-input').val().trim();
+    // [할 일 추가]
+    $("#add-btn").click(function () {
+        const title = $("#todo-input").val().trim();
         if (!title) {
-            alert('내용을 입력해주세요.');
+            alert("할 일 내용을 입력해 주세요.");
             return;
         }
 
         $.ajax({
-            url: '/todos',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ title: title, uid: currentUid }),
+            url: "/todos",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({ title: title, uid: currentUserId }),
             success: function () {
-                $('#todo-input').val('');
-                fetchTodos();
+                $("#todo-input").val("");
+                loadTodoList(currentUserId);
             },
             error: function () {
-                alert('데이터 저장에 실패했습니다.');
+                alert("항목 추가에 실패했습니다.");
             }
         });
-    }
+    });
 
-    // 데이터 상태 변경 업데이트 (PUT)
-    $(document).on('change', '.todo-toggle', function () {
-        const $li = $(this).closest('li');
-        const todoId = $li.data('id');
-        const isCompleted = $(this).is(':checked');
+    $("#todo-input").keypress(function (e) {
+        if (e.which === 13) { $("#add-btn").click(); }
+    });
+
+    // [할 일 상태 토글]
+    $(document).on("change", ".todo-toggle", function () {
+        const $li = $(this).closest("li");
+        const todoId = $li.data("id");
+        const isChecked = $(this).is(":checked");
 
         $.ajax({
             url: `/todos/${todoId}`,
-            type: 'PUT',
-            contentType: 'application/json',
-            data: JSON.stringify({ completed: isCompleted }),
+            type: "PUT",
+            contentType: "application/json",
+            data: JSON.stringify({ completed: isChecked }),
             success: function () {
-                if (isCompleted) {
-                    $li.find('.todo-title').addClass('completed');
+                if (isChecked) {
+                    $li.find(".todo-title").addClass("completed");
                 } else {
-                    $li.find('.todo-title').removeClass('completed');
+                    $li.find(".todo-title").removeClass("completed");
                 }
             },
             error: function () {
-                alert('상태 업데이트에 실패했습니다.');
-                $(this).prop('checked', !isCompleted);
+                alert("상태 변경에 실패했습니다.");
+                $(this).prop("checked", !isChecked);
             }
         });
     });
 
-    // 데이터 삭제 처리 (DELETE)
-    $(document).on('click', '.delete-btn', function () {
-        if (!confirm('해당 항목을 삭제하시겠습니까?')) return;
+    // [할 일 삭제]
+    $(document).on("click", ".todo-delete-btn", function () {
+        if (!confirm("이 항목을 삭제하시겠습니까?")) return;
 
-        const $li = $(this).closest('li');
-        const todoId = $li.data('id');
+        const $li = $(this).closest("li");
+        const todoId = $li.data("id");
 
         $.ajax({
             url: `/todos/${todoId}`,
-            type: 'DELETE',
+            type: "DELETE",
             success: function () {
-                $li.remove();
+                loadTodoList(currentUserId);
             },
             error: function () {
-                alert('삭제 처리에 실패했습니다.');
+                alert("항목 삭제에 실패했습니다.");
             }
         });
-    });
-
-    // 시스템 로그아웃 세션 클리어
-    $(document).on('click', '#logout-btn', function () {
-        if (!confirm('로그아웃 하시겠습니까?')) return;
-        
-        currentUid = '';
-        $('#login-id').val('');
-        $('#login-pwd').val('');
-        
-        $('#todo-section').hide();
-        $('#login-section').show();
     });
 });
